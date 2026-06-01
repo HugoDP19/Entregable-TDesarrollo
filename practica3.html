@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Práctica 3 · Partes del rostro</title>
+  <link rel="stylesheet" href="estilos.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.13/lib/p5.min.js"></script>
+  <script src="https://unpkg.com/ml5@1/dist/ml5.min.js"></script>
+</head>
+
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <!-- MENÚ LATERAL (aquí "Partes del rostro" va marcado como página actual) -->
+  <aside>
+    <div class="marca">
+      <button class="toggle" id="btnToggle" aria-label="Mostrar u ocultar el menú" aria-expanded="true"
+        aria-controls="menu">☰</button>
+      <span class="etiqueta">ML5 Dashboard</span>
+    </div>
+    <nav id="menu" aria-label="Navegación principal">
+      <a class="item" href="index.html">
+        <span class="icono" aria-hidden="true">🏠</span><span class="etiqueta">Inicio</span>
+      </a>
+      <a class="item" href="practica1.html">
+        <span class="icono" aria-hidden="true">🖼️</span><span class="etiqueta">Reconocimiento de imágenes</span>
+      </a>
+      <a class="item" href="practica2.html">
+        <span class="icono" aria-hidden="true">✏️</span><span class="etiqueta">Trazado de línea</span>
+      </a>
+      <a class="item" href="practica3.html" aria-current="page">
+        <span class="icono" aria-hidden="true">😀</span><span class="etiqueta">Partes del rostro</span>
+      </a>
+      <a class="item" href="practica4.html">
+        <span class="icono" aria-hidden="true">🤖</span><span class="etiqueta">Teachable Machine</span>
+      </a>
+      <a class="item" href="practica5.html">
+        <span class="icono" aria-hidden="true">🚨</span><span class="etiqueta">Alerta de persona</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO -->
+  <main id="contenido">
+    <header class="cabecera">
+      <h1>Detección de partes del rostro</h1>
+      <p>Elije qué parte del rostro detectar y con qué color pintarla.
+        La detección se muestra en tiempo real.</p>
+    </header>
+
+    <section class="tarjeta">
+      <!-- Controles: cada control tiene su <label> asociado por el atributo for -->
+      <div class="controles">
+        <span>
+          <label for="parte">Parte:</label>
+          <select id="parte">
+            <option value="leftEye">Ojo izquierdo</option>
+            <option value="rightEye">Ojo derecho</option>
+            <option value="leftEyebrow">Ceja izquierda</option>
+            <option value="rightEyebrow">Ceja derecha</option>
+            <option value="lips">Labios</option>
+            <option value="faceOval">Contorno del rostro</option>
+          </select>
+        </span>
+        <span style="display: flex; gap: 0.5em; align-items: center;">
+          <label for="color">Color:</label>
+          <input type="color" id="color" value="#00ff00">
+          <!-- Refleja en vivo el color elegido: cuadradito + código hex.
+               <output> es el elemento semántico para "valor resultante". -->
+          <span class="muestra-color">
+            <span class="swatch" id="swatchColor"></span>
+            <output id="valorColor" for="color">#00ff00</output>
+          </span>
+        </span>
+      </div>
+
+      <div id="lienzo" class="lienzo"></div>
+      <p class="leyenda">Vista de la cámara con la parte del rostro seleccionada resaltada.</p>
+    </section>
+  </main>
+
+  <script>
+    let faceMesh;     // Modelo de malla facial
+    let video;        // Captura de la cámara web
+    let faces = [];   // Rostros detectados
+    // maxFaces: 1 → con un rostro alcanza para esta práctica
+    let options = { maxFaces: 1, refineLandmarks: false, flipHorizontal: false };
+
+    // Referencias a los controles del HTML
+    let selectorParte;
+    let selectorColor;
+
+    function setup() {
+      createCanvas(640, 480).parent("lienzo");
+      video = createCapture(VIDEO);
+      video.size(640, 480);
+      video.hide();
+
+      // Guardamos las referencias una sola vez (no en cada frame)
+      selectorParte = document.getElementById("parte");
+      selectorColor = document.getElementById("color");
+
+      /*
+        Reflejamos el color elegido en la página: el cuadradito y el código
+        hex se actualizan cada vez que el usuario mueve el selector (evento
+        "input"). Lo llamamos una vez al inicio para mostrar el valor actual.
+      */
+      const swatch = document.getElementById("swatchColor");
+      const valorColor = document.getElementById("valorColor");
+      function reflejarColor() {
+        swatch.style.background = selectorColor.value;
+        valorColor.textContent = selectorColor.value;
+      }
+      selectorColor.addEventListener("input", reflejarColor);
+      reflejarColor();
+
+      // CLAVE: arrancamos la detección recién cuando el modelo está listo
+      faceMesh = ml5.faceMesh(options, modeloListo);
+    }
+
+    function modeloListo() {
+      faceMesh.detectStart(video, gotFaces);
+    }
+
+    function draw() {
+      image(video, 0, 0, width, height);
+
+      if (faces.length === 0) return; // sin rostro, nada que pintar
+
+      /*
+        El faceMesh expone cada parte como una propiedad nombrada del rostro
+        (leftEye, lips, etc.). Leemos el nombre elegido en el <select> y
+        accedemos dinámicamente con face[nombreParte].
+      */
+      const cara = faces[0];
+      const nombreParte = selectorParte.value;
+      const parte = cara[nombreParte];
+      if (!parte) return; // por si el modelo aún no entregó esa parte
+
+      // Convertimos el color del <input type="color"> (ej. "#00ff00") a P5
+      const c = color(selectorColor.value);
+      fill(c);
+      noStroke();
+
+      // Pintamos cada punto clave de la parte seleccionada
+      for (const punto of parte.keypoints) {
+        circle(punto.x, punto.y, 5);
+      }
+    }
+
+    function gotFaces(resultados) {
+      faces = resultados;
+    }
+  </script>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

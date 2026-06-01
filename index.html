@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard ML5.js · Inicio</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+
+<body>
+  <!-- Accesibilidad: saltar el menú e ir directo al contenido -->
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <!-- =================== MENÚ LATERAL =================== -->
+  <aside>
+    <div class="marca">
+      <button class="toggle" id="btnToggle"
+              aria-label="Mostrar u ocultar el menú"
+              aria-expanded="true" aria-controls="menu">☰</button>
+      <span class="etiqueta">ML5 Dashboard</span>
+    </div>
+
+    <nav id="menu" aria-label="Navegación principal">
+      <!-- aria-current="page" marca la página actual (estilo + accesibilidad) -->
+      <a class="item" href="index.html" aria-current="page">
+        <span class="icono" aria-hidden="true">🏠</span><span class="etiqueta">Inicio</span>
+      </a>
+      <a class="item" href="practica1.html">
+        <span class="icono" aria-hidden="true">🖼️</span><span class="etiqueta">Reconocimiento de imágenes</span>
+      </a>
+      <a class="item" href="practica2.html">
+        <span class="icono" aria-hidden="true">✏️</span><span class="etiqueta">Trazado de línea</span>
+      </a>
+      <a class="item" href="practica3.html">
+        <span class="icono" aria-hidden="true">😀</span><span class="etiqueta">Partes del rostro</span>
+      </a>
+      <a class="item" href="practica4.html">
+        <span class="icono" aria-hidden="true">🤖</span><span class="etiqueta">Teachable Machine</span>
+      </a>
+      <a class="item" href="practica5.html">
+        <span class="icono" aria-hidden="true">🚨</span><span class="etiqueta">Alerta de persona</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- =================== CONTENIDO =================== -->
+  <main id="contenido">
+    <header class="cabecera">
+      <h1>Prácticas de Machine Learning</h1>
+      <p>Aplicaciones de ML que corren en el navegador con ml5.js y p5.js.
+         Elije una práctica para comenzar.</p>
+    </header>
+
+    <!-- Cada tarjeta es un enlace completo hacia una práctica -->
+    <div class="grid">
+      <a class="card-practica" href="practica1.html"
+         aria-label="Abrir la práctica Reconocimiento de imágenes">
+        <div class="ic" aria-hidden="true">🖼️</div>
+        <h2>Reconocimiento de imágenes</h2>
+        <p>Clasifica imágenes de un catálogo con MobileNet y muestra la confianza.</p>
+      </a>
+
+      <a class="card-practica" href="practica2.html"
+         aria-label="Abrir la práctica Trazado de línea">
+        <div class="ic" aria-hidden="true">✏️</div>
+        <h2>Trazado de línea</h2>
+        <p>Traza una línea entre las puntas de los dedos índices usando la cámara.</p>
+      </a>
+
+      <a class="card-practica" href="practica3.html"
+         aria-label="Abrir la práctica Partes del rostro">
+        <div class="ic" aria-hidden="true">😀</div>
+        <h2>Partes del rostro</h2>
+        <p>Detecta y pinta la parte del rostro que elijas, con el color que quieras.</p>
+      </a>
+
+      <a class="card-practica" href="practica4.html"
+         aria-label="Abrir la práctica Teachable Machine">
+        <div class="ic" aria-hidden="true">🤖</div>
+        <h2>Teachable Machine</h2>
+        <p>Detecta en tiempo real objetos de un modelo entrenado y los anuncia por voz.</p>
+      </a>
+
+      <a class="card-practica" href="practica5.html"
+         aria-label="Abrir la práctica Alerta de persona">
+        <div class="ic" aria-hidden="true">🚨</div>
+        <h2>Alerta de persona</h2>
+        <p>Suena una alarma si detecta una persona durante 5 segundos seguidos.</p>
+      </a>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Práctica 4 · Teachable Machine</title>
+  <link rel="stylesheet" href="estilos.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.13/lib/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+</head>
+
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <!-- MENÚ LATERAL (aquí "Teachable Machine" va como página actual) -->
+  <aside>
+    <div class="marca">
+      <button class="toggle" id="btnToggle"
+              aria-label="Mostrar u ocultar el menú"
+              aria-expanded="true" aria-controls="menu">☰</button>
+      <span class="etiqueta">ML5 Dashboard</span>
+    </div>
+    <nav id="menu" aria-label="Navegación principal">
+      <a class="item" href="index.html">
+        <span class="icono" aria-hidden="true">🏠</span><span class="etiqueta">Inicio</span>
+      </a>
+      <a class="item" href="practica1.html">
+        <span class="icono" aria-hidden="true">🖼️</span><span class="etiqueta">Reconocimiento de imágenes</span>
+      </a>
+      <a class="item" href="practica2.html">
+        <span class="icono" aria-hidden="true">✏️</span><span class="etiqueta">Trazado de línea</span>
+      </a>
+      <a class="item" href="practica3.html">
+        <span class="icono" aria-hidden="true">😀</span><span class="etiqueta">Partes del rostro</span>
+      </a>
+      <a class="item" href="practica4.html" aria-current="page">
+        <span class="icono" aria-hidden="true">🤖</span><span class="etiqueta">Teachable Machine</span>
+      </a>
+      <a class="item" href="practica5.html">
+        <span class="icono" aria-hidden="true">🚨</span><span class="etiqueta">Alerta de persona</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO -->
+  <main id="contenido">
+    <header class="cabecera">
+      <h1>Detección en tiempo real · Teachable Machine</h1>
+      <p>Modelo entrenado con Teachable Machine. Muestra el objeto detectado,
+         su confianza, y lo anuncia por voz. Confianza mínima: 50%.</p>
+    </header>
+
+    <section class="tarjeta">
+      <div id="lienzo" class="lienzo"></div>
+
+      <!-- aria-live: el lector de pantalla anuncia el objeto detectado -->
+      <div id="resultado" class="resultado" aria-live="polite">
+        <span id="label">Cargando…</span><span id="confianza" class="confianza"></span>
+      </div>
+      <p class="leyenda">La detección corre en tiempo real sobre la cámara.</p>
+    </section>
+  </main>
+
+  <script>
+    let modelo;
+    let video;
+    let etiquetas = [];
+    let confidence = 0;
+    let label = "Cargando...";
+    let ultimaVoz = "";
+
+    function setup() {
+      let canvas = createCanvas(640, 480);
+      canvas.parent("lienzo");
+
+      video = createCapture(VIDEO);
+      video.size(640, 480);
+      video.hide();
+
+      document.getElementById("label").textContent = "Cargando modelo...";
+
+      cargarModelo();
+    }
+
+    async function cargarModelo() {
+      try {
+        await tf.ready();
+        console.log("Backend TFJS:", tf.getBackend());
+
+        let res = await fetch("./modelo1/metadata.json");
+        let meta = await res.json();
+        etiquetas = meta.labels;
+
+        modelo = await tf.loadLayersModel("./modelo1/model.json");
+
+        console.log("Modelo cargado. Etiquetas:", etiquetas);
+        document.getElementById("label").textContent = "Listo";
+        clasificar();
+      } catch (err) {
+        console.error("Error al cargar modelo:", err);
+        document.getElementById("label").textContent = "Error: " + err.message;
+      }
+    }
+
+    async function clasificar() {
+      if (!modelo || !video) return;
+
+      if (!video.elt || video.elt.readyState < 2) { setTimeout(clasificar, 100); return; }
+
+      let tensor = tf.tidy(() => {
+        let img = tf.browser.fromPixels(video.elt);
+        let resized = tf.image.resizeBilinear(img, [224, 224]);
+        let normalized = resized.div(255.0).expandDims(0);
+        return normalized;
+      });
+
+      let output = modelo.predict(tensor);
+      let datos = await output.data();
+      tensor.dispose();
+      output.dispose();
+
+      let maxProb = 0;
+      let idx = 0;
+      for (let i = 0; i < datos.length; i++) {
+        if (datos[i] > maxProb) {
+          maxProb = datos[i];
+          idx = i;
+        }
+      }
+
+      confidence = maxProb;
+
+      if (confidence >= 0.50 && idx < etiquetas.length) {
+        label = etiquetas[idx];
+        document.getElementById("label").textContent = label;
+        document.getElementById("confianza").textContent =
+          ` · ${(confidence * 100).toFixed(1)}%`;
+
+        if (label !== ultimaVoz) {
+          ultimaVoz = label;
+          hablar(label);
+        }
+      } else {
+        document.getElementById("label").textContent = "?";
+        document.getElementById("confianza").textContent = "";
+      }
+
+      clasificar();
+    }
+
+    function draw() {
+      image(video, 0, 0, width, height);
+
+      if (confidence >= 0.50) {
+        fill(0, 255, 0);
+        noStroke();
+        rect(10, 10, 20, 20);
+        fill(255);
+        textSize(14);
+        textAlign(LEFT, TOP);
+        text("DETECTANDO", 40, 12);
+      }
+    }
+
+    function hablar(texto) {
+      if (!window.speechSynthesis) return;
+      let utterance = new SpeechSynthesisUtterance(texto);
+      utterance.lang = "es-ES";
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
+  </script>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

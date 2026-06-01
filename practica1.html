@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Práctica 1 · Reconocimiento de imágenes</title>
+  <link rel="stylesheet" href="estilos.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.13/lib/p5.min.js"></script>
+  <script src="https://unpkg.com/ml5@1/dist/ml5.min.js"></script>
+</head>
+
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <!-- MENÚ LATERAL (aquí "Reconocimiento de imágenes" va como página actual) -->
+  <aside>
+    <div class="marca">
+      <button class="toggle" id="btnToggle"
+              aria-label="Mostrar u ocultar el menú"
+              aria-expanded="true" aria-controls="menu">☰</button>
+      <span class="etiqueta">ML5 Dashboard</span>
+    </div>
+    <nav id="menu" aria-label="Navegación principal">
+      <a class="item" href="index.html">
+        <span class="icono" aria-hidden="true">🏠</span><span class="etiqueta">Inicio</span>
+      </a>
+      <a class="item" href="practica1.html" aria-current="page">
+        <span class="icono" aria-hidden="true">🖼️</span><span class="etiqueta">Reconocimiento de imágenes</span>
+      </a>
+      <a class="item" href="practica2.html">
+        <span class="icono" aria-hidden="true">✏️</span><span class="etiqueta">Trazado de línea</span>
+      </a>
+      <a class="item" href="practica3.html">
+        <span class="icono" aria-hidden="true">😀</span><span class="etiqueta">Partes del rostro</span>
+      </a>
+      <a class="item" href="practica4.html">
+        <span class="icono" aria-hidden="true">🤖</span><span class="etiqueta">Teachable Machine</span>
+      </a>
+      <a class="item" href="practica5.html">
+        <span class="icono" aria-hidden="true">🚨</span><span class="etiqueta">Alerta de persona</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO -->
+  <main id="contenido">
+    <header class="cabecera">
+      <h1>Reconocimiento de imágenes</h1>
+      <p>Elije una imagen del catálogo: el modelo MobileNet dice qué cree que es
+         y con qué nivel de confianza. Si no llega al 50%, no puede precisarlo.</p>
+    </header>
+
+    <section class="tarjeta">
+      <!-- Catálogo: cada miniatura es un botón (accesible con teclado) -->
+      <div class="galeria">
+        <button class="card" data-img="perro01.jpg">
+          <img src="images/perro01.jpg" alt="Foto de un perro"><span>Perro</span>
+        </button>
+        <button class="card" data-img="leopardo.jpg">
+          <img src="images/leopardo.jpg" alt="Foto de un leopardo"><span>Leopardo</span>
+        </button>
+        <button class="card" data-img="leon01.jpg">
+          <img src="images/leon01.jpg" alt="Foto de un león"><span>León</span>
+        </button>
+        <button class="card" data-img="gato01.jpg">
+          <img src="images/gato01.jpg" alt="Foto de un gato"><span>Gato</span>
+        </button>
+        <button class="card" data-img="distorsion.jpg">
+          <img src="images/distorsion.jpg" alt="Imagen distorsionada"><span>Distorsión</span>
+        </button>
+      </div>
+
+      <div id="lienzo" class="lienzo"></div>
+
+      <!-- aria-live: el lector de pantalla anuncia el resultado al cambiar -->
+      <div id="resultado" class="resultado" aria-live="polite">Elije una imagen del catálogo…</div>
+    </section>
+  </main>
+
+  <script>
+    let classifier;   // Modelo de clasificación de imágenes
+    let img;          // Imagen actualmente mostrada/clasificada
+
+    function preload() {
+      // La primera imagen se carga en preload: queda lista antes de setup()
+      img = loadImage("images/perro01.jpg");
+    }
+
+    function setup() {
+      createCanvas(400, 400).parent("lienzo");
+      image(img, 0, 0, width, height);
+
+      // Conectamos cada botón del catálogo con su imagen (data-img)
+      document.querySelectorAll(".card").forEach(boton => {
+        boton.addEventListener("click", () => seleccionarImagen(boton));
+      });
+
+      // CLAVE: cargamos el modelo y clasificamos RECIÉN cuando está listo
+      classifier = ml5.imageClassifier("MobileNet", modeloListo);
+    }
+
+    // Se ejecuta cuando el modelo terminó de cargar
+    function modeloListo() {
+      clasificar(); // clasifica la imagen inicial (ya cargada en preload)
+    }
+
+    // Carga la imagen elegida, la dibuja y la clasifica
+    function seleccionarImagen(boton) {
+      marcarActivo(boton);
+      img = loadImage("images/" + boton.dataset.img, () => {
+        image(img, 0, 0, width, height);
+        clasificar();
+      });
+    }
+
+    function clasificar() {
+      if (classifier && img) classifier.classify(img, gotResult);
+    }
+
+    // Resalta la miniatura seleccionada (aria-pressed: estado para accesibilidad)
+    function marcarActivo(boton) {
+      document.querySelectorAll(".card").forEach(b => b.setAttribute("aria-pressed", "false"));
+      boton.setAttribute("aria-pressed", "true");
+    }
+
+    function gotResult(results) {
+      const top = results[0];           // el resultado más probable
+      const etiqueta = top.label;
+      const confianza = top.confidence; // valor de 0 a 1
+
+      // Volvemos a dibujar la imagen limpia
+      background(255);
+      image(img, 0, 0, width, height);
+
+      const caja = document.getElementById("resultado");
+
+      /*
+        Requisito del enunciado: si la confianza es MENOR al 50%, el modelo
+        no puede precisar qué es → mostramos un "?".
+      */
+     
+      if (confianza < 0.5) {
+        fill(0, 0, 0, 150);             // velo oscuro sobre la imagen
+        rect(0, 0, width, height);
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(140);
+        text("?", width / 2, height / 2);
+        caja.textContent = "No puedo precisar qué es (confianza menor al 50%).";
+      } else {
+        caja.innerHTML =
+          `<strong>${etiqueta}</strong> · ` +
+          `<span class="confianza">${nf(confianza * 100, 2, 1)}%</span>`;
+      }
+    }
+  </script>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

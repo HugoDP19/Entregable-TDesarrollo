@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Práctica 5 · Alerta de persona</title>
+  <link rel="stylesheet" href="estilos.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.13/lib/p5.min.js"></script>
+  <script src="https://unpkg.com/ml5@1/dist/ml5.min.js"></script>
+</head>
+
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <!-- MENÚ LATERAL (aquí "Alerta de persona" va marcado como página actual) -->
+  <aside>
+    <div class="marca">
+      <button class="toggle" id="btnToggle"
+              aria-label="Mostrar u ocultar el menú"
+              aria-expanded="true" aria-controls="menu">☰</button>
+      <span class="etiqueta">ML5 Dashboard</span>
+    </div>
+    <nav id="menu" aria-label="Navegación principal">
+      <a class="item" href="index.html">
+        <span class="icono" aria-hidden="true">🏠</span><span class="etiqueta">Inicio</span>
+      </a>
+      <a class="item" href="practica1.html">
+        <span class="icono" aria-hidden="true">🖼️</span><span class="etiqueta">Reconocimiento de imágenes</span>
+      </a>
+      <a class="item" href="practica2.html">
+        <span class="icono" aria-hidden="true">✏️</span><span class="etiqueta">Trazado de línea</span>
+      </a>
+      <a class="item" href="practica3.html">
+        <span class="icono" aria-hidden="true">😀</span><span class="etiqueta">Partes del rostro</span>
+      </a>
+      <a class="item" href="practica4.html">
+        <span class="icono" aria-hidden="true">🤖</span><span class="etiqueta">Teachable Machine</span>
+      </a>
+      <a class="item" href="practica5.html" aria-current="page">
+        <span class="icono" aria-hidden="true">🚨</span><span class="etiqueta">Alerta de persona</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO -->
+  <main id="contenido">
+    <header class="cabecera">
+      <h1>Alerta por presencia de persona</h1>
+      <p>Si se detecta una persona durante <strong>5 segundos seguidos</strong>,
+         suena la alarma. La barra de abajo muestra el conteo.</p>
+    </header>
+
+    <section class="tarjeta">
+      <div id="lienzo" class="lienzo"></div>
+      <p class="leyenda">Vista de la cámara con la detección de personas y la barra de conteo.</p>
+    </section>
+  </main>
+
+  <script>
+    const SEGUNDOS_LIMITE = 5;            // umbral de tiempo antes de la alarma
+    const MS_LIMITE = SEGUNDOS_LIMITE * 1000;
+
+    let detector;          // Modelo detector de objetos (COCO-SSD)
+    let video;             // Captura de la cámara web
+    let detecciones = [];  // Objetos detectados en el frame
+
+    /*
+      ESTADO DEL CONTEO
+      inicioPresencia = momento (millis) en que la persona apareció.
+      null significa "no hay persona midiéndose ahora mismo".
+      alarmaSonada evita que el beep se repita en cada frame una vez disparado.
+    */
+    let inicioPresencia = null;
+    let alarmaSonada = false;
+
+    function setup() {
+      createCanvas(640, 480).parent("lienzo");
+      video = createCapture(VIDEO);
+      video.size(640, 480);
+      video.hide();
+
+      // CLAVE: arrancamos la detección recién cuando el modelo está listo.
+      // COCO-SSD reconoce 80 clases de objetos; entre ellas "person".
+      detector = ml5.objectDetection("cocossd", modeloListo);
+    }
+
+    function modeloListo() {
+      detector.detectStart(video, gotDetections);
+    }
+
+    function draw() {
+      image(video, 0, 0, width, height);
+
+      // ¿Hay al menos una persona en el frame actual?
+      const hayPersona = detecciones.some(d => d.label === "person");
+
+      // Dibujamos el recuadro de cada persona detectada
+      for (const d of detecciones) {
+        if (d.label !== "person") continue;
+        noFill();
+        stroke(0, 255, 0);
+        strokeWeight(3);
+        rect(d.x, d.y, d.width, d.height);
+      }
+
+      /*
+        MÁQUINA DE TIEMPO
+        - Si hay persona y aún no arrancamos el conteo, lo iniciamos.
+        - Si NO hay persona, reiniciamos todo: el conteo debe ser CONTINUO.
+      */
+      if (hayPersona) {
+        if (inicioPresencia === null) inicioPresencia = millis();
+      } else {
+        inicioPresencia = null;
+        alarmaSonada = false;
+      }
+
+      // Cuánto tiempo lleva la persona presente (0 si no hay nadie)
+      const transcurrido = inicioPresencia === null ? 0 : millis() - inicioPresencia;
+      const progreso = Math.min(transcurrido / MS_LIMITE, 1); // 0 a 1
+
+      dibujarBarra(progreso);
+
+      // Al cruzar el umbral, disparamos la alarma UNA sola vez
+      if (transcurrido >= MS_LIMITE && !alarmaSonada) {
+        sonarAlarma();
+        alarmaSonada = true;
+      }
+
+      // Aviso visual mientras la alarma está activa
+      if (alarmaSonada) {
+        noStroke();
+        fill(255, 0, 0);
+        textSize(32);
+        textAlign(CENTER);
+        text("¡PERSONA DETECTADA!", width / 2, 50);
+      }
+    }
+
+    // Barra de progreso del conteo, dibujada en la base del canvas
+    function dibujarBarra(progreso) {
+      const alto = 24;
+      const y = height - alto;
+      noStroke();
+      fill(50);                                   // fondo de la barra
+      rect(0, y, width, alto);
+      fill(progreso >= 1 ? color(255, 0, 0) : color(0, 200, 0)); // se pone roja al llegar
+      rect(0, y, width * progreso, alto);         // relleno proporcional al tiempo
+    }
+
+    /*
+      ALARMA SONORA
+      Usamos la Web Audio API directa (un oscilador) para no depender de
+      archivos de audio ni de librerías extra. Un beep corto y agudo.
+    */
+    function sonarAlarma() {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscilador = ctx.createOscillator();
+      const volumen = ctx.createGain();
+      oscilador.type = "square";
+      oscilador.frequency.value = 880; // tono agudo (La5)
+      oscilador.connect(volumen);
+      volumen.connect(ctx.destination);
+      oscilador.start();
+      oscilador.stop(ctx.currentTime + 0.6); // suena 0.6 segundos y se corta
+    }
+
+    function gotDetections(resultados) {
+      detecciones = resultados;
+    }
+  </script>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
